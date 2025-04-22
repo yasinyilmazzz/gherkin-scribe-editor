@@ -1,5 +1,5 @@
-
 import { useEffect, useRef, useState } from "react";
+import ImportDialog from "../components/ImportDialog";
 
 const Index = () => {
   // DOM element references
@@ -12,6 +12,10 @@ const Index = () => {
   const [savedTests, setSavedTests] = useState<Array<{id: string, title: string, content: string}>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ line: 0, ch: 0 });
+
+  // New state for sidebar selection and import dialog
+  const [selectedScenario, setSelectedScenario] = useState<{id: string, title: string, content: string} | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   
   // Load saved tests from local storage
   useEffect(() => {
@@ -231,12 +235,14 @@ const Index = () => {
       setSavedTests(filteredTests);
       localStorage.setItem('gherkinTests', JSON.stringify(filteredTests));
       showToast('Başarılı', 'Test senaryosu silindi.');
-      
-      // If editing the deleted test, clear the editor
+
       if (editingId === id && editorRef.current && highlightedContentRef.current) {
         editorRef.current.value = '';
         highlightedContentRef.current.innerHTML = '';
         setEditingId(null);
+      }
+      if (selectedScenario && selectedScenario.id === id) {
+        setSelectedScenario(null);
       }
     }
   };
@@ -270,6 +276,24 @@ const Index = () => {
     }
   };
 
+  // Select scenario to show on sidebar
+  const handleShowScenario = (test: { id: string, title: string, content: string }) => {
+    setSelectedScenario(test);
+  };
+
+  // Handle imported scenarios (from ImportDialog)
+  const addImportedScenarios = (scenarios: Array<{title: string, content: string}>) => {
+    const now = Date.now();
+    const withIds = scenarios.map((item, idx) => ({
+      id: (now + idx).toString(),
+      ...item
+    }));
+    const updatedTests = [...savedTests, ...withIds];
+    setSavedTests(updatedTests);
+    localStorage.setItem('gherkinTests', JSON.stringify(updatedTests));
+    showToast('Başarılı', 'Senaryolar başarıyla içe aktarıldı.');
+  };
+
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -286,7 +310,109 @@ const Index = () => {
   }, []);
 
   return (
-    <>
+    <div className="flex flex-col md:flex-row w-full min-h-[90vh]">
+      {/* Main content: Editor and saved list */}
+      <div className="flex-1 container">
+        <h1>Cucumber Gherkin Test Case Editor</h1>
+        <div className="button-container">
+          <button onClick={saveTestCase} className="primary-button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
+            <span>{editingId ? 'Güncelle' : 'Kaydet'}</span>
+          </button>
+          <button onClick={exportTestCases} className="secondary-button">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Dışa Aktar
+          </button>
+          <button onClick={() => setImportOpen(true)} className="secondary-button flex items-center">
+            {/* Lucide "import" icon */}
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 21V3"/><path d="M7 16l5 5 5-5"/></svg>
+            İçe Aktar
+          </button>
+        </div>
+
+        <div className="editor-container">
+          <div className="editor">
+            <textarea 
+              ref={editorRef}
+              id="editor" 
+              placeholder="Gherkin test senaryonuzu yazmaya başlayın..." 
+              onInput={handleEditorInput}
+              onScroll={handleEditorScroll}
+            ></textarea>
+            <div ref={highlightedContentRef} className="highlighted-content"></div>
+          </div>
+          <div ref={suggestionsRef} className="suggestions" style={{ display: 'none' }}></div>
+        </div>
+
+        {/* Kaydedilmiş Test Senaryoları listesi */}
+        <h2>Kaydedilmiş Test Senaryoları</h2>
+        <div ref={testCaseListRef} className="test-case-list">
+          {savedTests.length === 0 ? (
+            <div className="empty-state">Henüz kaydedilmiş test senaryosu yok.</div>
+          ) : (
+            savedTests.map((test) => (
+              <div key={test.id} className="test-case-card">
+                <div className="test-case-header" onClick={() => handleShowScenario(test)}>
+                  <div className="test-case-title">{test.title}</div>
+                  <div className="button-group">
+                    <button className="edit-button" onClick={(e) => {
+                      e.stopPropagation();
+                      editTestCase(test.id);
+                    }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
+                    </button>
+                    <button className="edit-button" onClick={(e) => {
+                      e.stopPropagation();
+                      deleteTestCase(test.id);
+                    }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                {/* Hide the content preview in the list, as it's now in the sidebar */}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Sidebar for displaying selected scenario */}
+      <div className="w-full md:w-[400px] border-l border-gray-200 bg-gray-50 p-6 min-h-full">
+        <h2 className="font-semibold text-lg mb-4">Senaryo Önizleme</h2>
+        {selectedScenario ? (
+          <pre className="whitespace-pre-wrap bg-white rounded p-4 border text-sm overflow-auto min-h-[200px] max-h-[75vh]">{selectedScenario.content}</pre>
+        ) : (
+          <div className="text-gray-400 italic text-sm">Bir senaryo seçin...</div>
+        )}
+      </div>
+
+      {/* Import dialog */}
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} onImport={addImportedScenarios} />
+      
+      {/* Toast and Footer */}
+      <div id="toast" className="toast">
+        <div className="toast-title" id="toastTitle"></div>
+        <div className="toast-message" id="toastMessage"></div>
+      </div>
+      <footer>
+        Created by yasin yilmaz @2025
+      </footer>
       <style jsx>{`
         * {
           box-sizing: border-box;
@@ -561,95 +687,7 @@ const Index = () => {
           border-top: 1px solid #e5e7eb;
         }
       `}</style>
-
-      <div className="container">
-        <h1>Cucumber Gherkin Test Case Editor</h1>
-        
-        <div className="button-container">
-          <button onClick={saveTestCase} className="primary-button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-              <polyline points="17 21 17 13 7 13 7 21"></polyline>
-              <polyline points="7 3 7 8 15 8"></polyline>
-            </svg>
-            <span>{editingId ? 'Güncelle' : 'Kaydet'}</span>
-          </button>
-          <button onClick={exportTestCases} className="secondary-button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Dışa Aktar
-          </button>
-        </div>
-        
-        <div className="editor-container">
-          <div className="editor">
-            <textarea 
-              ref={editorRef}
-              id="editor" 
-              placeholder="Gherkin test senaryonuzu yazmaya başlayın..." 
-              onInput={handleEditorInput}
-              onScroll={handleEditorScroll} // This is important for syncing scroll
-            ></textarea>
-            <div ref={highlightedContentRef} className="highlighted-content"></div>
-          </div>
-          <div ref={suggestionsRef} className="suggestions" style={{ display: 'none' }}></div>
-        </div>
-        
-        <h2>Kaydedilmiş Test Senaryoları</h2>
-        <div ref={testCaseListRef} className="test-case-list">
-          {savedTests.length === 0 ? (
-            <div className="empty-state">Henüz kaydedilmiş test senaryosu yok.</div>
-          ) : (
-            savedTests.map((test) => (
-              <div key={test.id} className="test-case-card">
-                <div className="test-case-header" onClick={() => {
-                  // Toggle expanded class on test case content
-                  const content = document.querySelector(`#test-content-${test.id}`);
-                  content?.classList.toggle('expanded');
-                }}>
-                  <div className="test-case-title">{test.title}</div>
-                  <div className="button-group">
-                    <button className="edit-button" onClick={(e) => {
-                      e.stopPropagation();
-                      editTestCase(test.id);
-                    }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                      </svg>
-                    </button>
-                    <button className="edit-button" onClick={(e) => {
-                      e.stopPropagation();
-                      deleteTestCase(test.id);
-                    }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                <pre id={`test-content-${test.id}`} className="test-case-content">{test.content}</pre>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-      
-      <div id="toast" className="toast">
-        <div className="toast-title" id="toastTitle"></div>
-        <div className="toast-message" id="toastMessage"></div>
-      </div>
-      
-      <footer>
-        Created by yasin yilmaz @2025
-      </footer>
-    </>
+    </div>
   );
 };
 
