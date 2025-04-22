@@ -587,7 +587,7 @@ const Index = () => {
           max-width: 730px;
         }
         .sidebar-panel {
-          flex-basis: 340px;
+          flex-basis: 400px;
           flex-shrink: 0;
           background: #f5f6fa;
           border-left: 1px solid #e5e7eb;
