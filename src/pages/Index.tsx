@@ -404,16 +404,17 @@ const Index = () => {
           font-size: 14px;
           resize: none;
           border: none;
-          background-color: transparent;
+          background: transparent;
           position: absolute;
           top: 0;
           left: 0;
           padding: 16px;
-          color: transparent;
+          color: rgba(0,0,0,0.01); /* caret hizası için */
           caret-color: black;
           z-index: 2;
           line-height: 1.5;
-          overflow-y: auto; /* Enable scrolling */
+          overflow-y: auto;
+          letter-spacing: normal;
         }
         
         .editor textarea:focus {
