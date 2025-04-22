@@ -750,7 +750,7 @@ const Index = () => {
             margin: "12px 0 0 0",
             color: "#6b7280",
             fontSize: "15px"
-          }}>
+          }} className="mx-[14px] my-[8px]">
                 Başlık: <strong>{selectedTest.title}</strong>
               </div>
             </> : <div className="readonly-empty">
