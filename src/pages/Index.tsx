@@ -1,22 +1,32 @@
 import { useEffect, useRef, useState } from "react";
 import ImportDialog from "../components/ImportDialog";
-
 const Index = () => {
   // DOM element references
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const highlightedContentRef = useRef<HTMLDivElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const testCaseListRef = useRef<HTMLDivElement>(null);
-  
+
   // Read-only panel state
-  const [selectedTest, setSelectedTest] = useState<{id: string, title: string, content: string} | null>(null);
-  
+  const [selectedTest, setSelectedTest] = useState<{
+    id: string;
+    title: string;
+    content: string;
+  } | null>(null);
+
   // State
-  const [savedTests, setSavedTests] = useState<Array<{id: string, title: string, content: string}>>([]);
+  const [savedTests, setSavedTests] = useState<Array<{
+    id: string;
+    title: string;
+    content: string;
+  }>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
-  const [cursorPosition, setCursorPosition] = useState({ line: 0, ch: 0 });
-  
+  const [cursorPosition, setCursorPosition] = useState({
+    line: 0,
+    ch: 0
+  });
+
   // Load saved tests from local storage
   useEffect(() => {
     const storedTests = localStorage.getItem('gherkinTests');
@@ -24,11 +34,10 @@ const Index = () => {
       setSavedTests(JSON.parse(storedTests));
     }
   }, []);
-  
+
   // Apply syntax highlighting
   const applySyntaxHighlighting = (text: string) => {
     if (!text) return '';
-    
     const lines = text.split('\n');
     const highlightedLines = lines.map(line => {
       // Check for keywords at the beginning of the line
@@ -37,22 +46,19 @@ const Index = () => {
         const keyword = keywordMatch[1];
         const space = keywordMatch[2];
         const rest = keywordMatch[3];
-        
+
         // Capitalize first letter of keyword
         const capitalizedKeyword = keyword.charAt(0).toUpperCase() + keyword.slice(1).toLowerCase();
-        
+
         // Highlight parameters in quotes in the rest of the line
         const highlightedRest = rest.replace(/"([^"]*)"/g, '<span class="parameter">"$1"</span>');
-        
         return `<div><span class="keyword">${capitalizedKeyword}</span>${space}${highlightedRest}</div>`;
       }
-      
       return `<div>${line || '&nbsp;'}</div>`;
     });
-    
     return highlightedLines.join('');
   };
-  
+
   // Extract all steps from saved tests for autocomplete
   const getAllSteps = () => {
     const steps: string[] = [];
@@ -71,61 +77,53 @@ const Index = () => {
     });
     return steps;
   };
-  
+
   // Show toast notification
   const showToast = (title: string, message: string, isError: boolean = false) => {
     const toast = document.getElementById('toast');
     const toastTitle = document.getElementById('toastTitle');
     const toastMessage = document.getElementById('toastMessage');
-    
     if (toast && toastTitle && toastMessage) {
       toastTitle.textContent = title;
       toastMessage.textContent = message;
-      
       if (isError) {
         toast.classList.add('error');
       } else {
         toast.classList.remove('error');
       }
-      
       toast.classList.add('show');
-      
       setTimeout(() => {
         toast.classList.remove('show');
       }, 3000);
     }
   };
-  
+
   // Handle editor input
   const handleEditorInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const editor = e.target;
     const text = editor.value;
-    
     if (highlightedContentRef.current) {
       highlightedContentRef.current.innerHTML = applySyntaxHighlighting(text);
-      
+
       // Sync scroll position - THIS IS THE KEY FIX
       highlightedContentRef.current.scrollTop = editor.scrollTop;
     }
-    
+
     // Get current line for autocomplete
     const cursorPos = editor.selectionStart;
     const textBeforeCursor = text.substring(0, cursorPos);
     const lines = textBeforeCursor.split('\n');
     const currentLine = lines[lines.length - 1];
-    
+
     // Check if we're in a step line
     const stepMatch = currentLine.match(/^(Given|When|Then|And|But)\s+(.*)$/i);
     if (stepMatch && suggestionsRef.current) {
       const keyword = stepMatch[1];
       const currentInput = stepMatch[2].toLowerCase();
-      
+
       // Filter suggestions based on current input
       const allSteps = getAllSteps();
-      const filteredSuggestions = allSteps
-        .filter(step => step.toLowerCase().includes(currentInput))
-        .map(step => `${keyword} ${step}`);
-      
+      const filteredSuggestions = allSteps.filter(step => step.toLowerCase().includes(currentInput)).map(step => `${keyword} ${step}`);
       if (filteredSuggestions.length > 0) {
         suggestionsRef.current.innerHTML = '';
         filteredSuggestions.forEach(suggestion => {
@@ -136,12 +134,12 @@ const Index = () => {
           suggestionsRef.current?.appendChild(item);
         });
         suggestionsRef.current.style.display = 'block';
-        
+
         // Position suggestions BELOW the current line
         const lineHeight = 24; // Approximate line height
         const lineIndex = lines.length - 1;
         suggestionsRef.current.style.top = `${16 + (lineIndex + 1) * lineHeight}px`; // +1 to position below
-        
+
         setCursorPosition({
           line: lines.length - 1,
           ch: currentLine.length
@@ -153,45 +151,42 @@ const Index = () => {
       suggestionsRef.current.style.display = 'none';
     }
   };
-  
+
   // Select suggestion
   const selectSuggestion = (suggestion: string) => {
     if (!editorRef.current || !highlightedContentRef.current) return;
-    
     const lines = editorRef.current.value.split('\n');
     const currentLineIndex = cursorPosition.line;
-    
+
     // Replace the current line with the selected suggestion
     lines[currentLineIndex] = suggestion;
-    
     editorRef.current.value = lines.join('\n');
     highlightedContentRef.current.innerHTML = applySyntaxHighlighting(editorRef.current.value);
     if (suggestionsRef.current) suggestionsRef.current.style.display = 'none';
-    
+
     // Focus back on the editor
     editorRef.current.focus();
   };
-  
+
   // Save test case
   const saveTestCase = () => {
     if (!editorRef.current || !highlightedContentRef.current) return;
-    
     const content = editorRef.current.value.trim();
-    
     if (!content) {
       showToast('Hata', 'Boş test senaryosu kaydedilemez.', true);
       return;
     }
-    
+
     // Extract scenario title
     const scenarioMatch = content.match(/Scenario:\s*(.+)$/m);
     const title = scenarioMatch ? scenarioMatch[1].trim() : 'İsimsiz Senaryo';
-    
     if (editingId) {
       // Update existing test
-      const updatedTests = savedTests.map(test => 
-        test.id === editingId ? { ...test, title, content } : test
-      );
+      const updatedTests = savedTests.map(test => test.id === editingId ? {
+        ...test,
+        title,
+        content
+      } : test);
       setSavedTests(updatedTests);
       localStorage.setItem('gherkinTests', JSON.stringify(updatedTests));
       setEditingId(null);
@@ -206,12 +201,11 @@ const Index = () => {
       setSavedTests(updatedTests);
       localStorage.setItem('gherkinTests', JSON.stringify(updatedTests));
     }
-    
     editorRef.current.value = '';
     highlightedContentRef.current.innerHTML = '';
     showToast('Başarılı', 'Test senaryosu kaydedildi.');
   };
-  
+
   // Edit test case
   const editTestCase = (id: string) => {
     const testToEdit = savedTests.find(test => test.id === id);
@@ -219,15 +213,18 @@ const Index = () => {
       editorRef.current.value = testToEdit.content;
       highlightedContentRef.current.innerHTML = applySyntaxHighlighting(testToEdit.content);
       setEditingId(id);
-      
+
       // Scroll to editor
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+
       // Focus on editor
       editorRef.current.focus();
     }
   };
-  
+
   // Delete test case
   const deleteTestCase = (id: string) => {
     if (window.confirm('Bu test senaryosunu silmek istediğinize emin misiniz?')) {
@@ -235,7 +232,7 @@ const Index = () => {
       setSavedTests(filteredTests);
       localStorage.setItem('gherkinTests', JSON.stringify(filteredTests));
       showToast('Başarılı', 'Test senaryosu silindi.');
-      
+
       // If editing the deleted test, clear the editor
       if (editingId === id && editorRef.current && highlightedContentRef.current) {
         editorRef.current.value = '';
@@ -244,18 +241,18 @@ const Index = () => {
       }
     }
   };
-  
+
   // Export test cases
   const exportTestCases = () => {
     if (savedTests.length === 0) {
       showToast('Hata', 'Dışa aktarılacak test senaryosu yok.', true);
       return;
     }
-    
     const exportContent = savedTests.map(test => test.content).join('\n\n');
-    const blob = new Blob([exportContent], { type: 'text/plain' });
+    const blob = new Blob([exportContent], {
+      type: 'text/plain'
+    });
     const url = URL.createObjectURL(blob);
-    
     const a = document.createElement('a');
     a.href = url;
     a.download = 'gherkin_test_cases.feature';
@@ -263,10 +260,9 @@ const Index = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
     showToast('Başarılı', 'Test senaryoları dışa aktarıldı.');
   };
-  
+
   // Handle editor scroll - Key function to fix the scroll issue
   const handleEditorScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (highlightedContentRef.current) {
@@ -277,12 +273,10 @@ const Index = () => {
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node) && 
-          event.target !== editorRef.current) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node) && event.target !== editorRef.current) {
         suggestionsRef.current.style.display = 'none';
       }
     };
-    
     document.addEventListener('click', handleClickOutside);
     return () => {
       document.removeEventListener('click', handleClickOutside);
@@ -314,14 +308,9 @@ const Index = () => {
     setSavedTests(newTests);
     localStorage.setItem('gherkinTests', JSON.stringify(newTests));
     setShowImport(false);
-    if (importedCount)
-      showToast('Başarılı', `Toplam ${importedCount} senaryo içe aktarıldı.`);
-    else
-      showToast('Uyarı', `Yüklenen dosyada eklenebilecek yeni senaryo bulunamadı.`, true);
+    if (importedCount) showToast('Başarılı', `Toplam ${importedCount} senaryo içe aktarıldı.`);else showToast('Uyarı', `Yüklenen dosyada eklenebilecek yeni senaryo bulunamadı.`, true);
   };
-
-  return (
-    <>
+  return <>
       <style jsx>{`
         * {
           box-sizing: border-box;
@@ -688,8 +677,12 @@ const Index = () => {
               </svg>
               Dışa Aktar
             </button>
-            <button onClick={() => setShowImport(true)} className="secondary-button" style={{marginLeft: '0'}}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" style={{marginRight: 4}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <button onClick={() => setShowImport(true)} className="secondary-button" style={{
+            marginLeft: '0'
+          }}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" style={{
+              marginRight: 4
+            }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 3v12"></path>
                 <path d="M16.5 10.5L12 15l-4.5-4.5"></path>
                 <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
@@ -699,46 +692,42 @@ const Index = () => {
           </div>
           <div className="editor-container">
             <div className="editor">
-              <textarea
-                ref={editorRef}
-                id="editor"
-                placeholder="Gherkin test senaryonuzu yazmaya başlayın..."
-                onInput={handleEditorInput}
-                onScroll={handleEditorScroll}
-              ></textarea>
+              <textarea ref={editorRef} id="editor" placeholder="Gherkin test senaryonuzu yazmaya başlayın..." onInput={handleEditorInput} onScroll={handleEditorScroll}></textarea>
               <div ref={highlightedContentRef} className="highlighted-content"></div>
             </div>
-            <div ref={suggestionsRef} className="suggestions" style={{ display: 'none' }}></div>
+            <div ref={suggestionsRef} className="suggestions" style={{
+            display: 'none'
+          }}></div>
           </div>
           {/* Kaydedilmiş Senaryolar şimdi hemen inputun altında */}
-          <h2 style={{marginBottom: "0.6rem", marginTop: "2rem"}}>Kaydedilmiş Test Senaryoları</h2>
+          <h2 style={{
+          marginBottom: "0.6rem",
+          marginTop: "2rem"
+        }}>Kaydedilmiş Test Senaryoları</h2>
           <div className="test-case-list">
-            {savedTests.length === 0 ? (
-              <div className="empty-state">Henüz kaydedilmiş test senaryosu yok.</div>
-            ) : (
-              savedTests.map((test) => (
-                <div key={test.id} className="test-case-card" tabIndex={0}
-                  style={{cursor: "pointer"}}
-                  onClick={() => setSelectedTest(test)}
-                  onKeyDown={e => { if (e.key === "Enter") setSelectedTest(test); }}>
+            {savedTests.length === 0 ? <div className="empty-state">Henüz kaydedilmiş test senaryosu yok.</div> : savedTests.map(test => <div key={test.id} className="test-case-card" tabIndex={0} style={{
+            cursor: "pointer"
+          }} onClick={() => setSelectedTest(test)} onKeyDown={e => {
+            if (e.key === "Enter") setSelectedTest(test);
+          }}>
                   <div className="test-case-header">
                     <div className="test-case-title">{test.title}</div>
                     <div className="button-group">
                       <button className="edit-button" title="Düzenle" onClick={e => {
-                        e.stopPropagation();
-                        setSelectedTest(null);
-                        editTestCase(test.id);
-                      }}>
+                  e.stopPropagation();
+                  setSelectedTest(null);
+                  editTestCase(test.id);
+                }}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                           <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                         </svg>
                       </button>
                       <button className="edit-button" title="Sil" onClick={e => {
-                        e.stopPropagation();
-                        setSelectedTest(null);
-                        deleteTestCase(test.id);
-                      }}>
+                  e.stopPropagation();
+                  setSelectedTest(null);
+                  deleteTestCase(test.id);
+                }}>
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="3 6 5 6 21 6"></polyline>
                           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -749,25 +738,23 @@ const Index = () => {
                     </div>
                   </div>
                   {/* Kapatılan content kaldırıldı, sadece sağ panelde gösterilecek */}
-                </div>
-              ))
-            )}
+                </div>)}
           </div>
         </div>
-        <aside className="sidebar-panel">
-          <div className="readonly-title">Detaylı Önizleme</div>
-          {selectedTest ? (
-            <>
+        <aside className="sidebar-panel my-[120px] mx-0 py-[12px] px-0">
+          <div className="readonly-title px-[19px]">Detaylı Önizleme</div>
+          {selectedTest ? <>
               <div className="readonly-feature">{selectedTest.content}</div>
-              <div style={{margin: "12px 0 0 0", color: "#6b7280", fontSize: "15px"}}>
+              <div style={{
+            margin: "12px 0 0 0",
+            color: "#6b7280",
+            fontSize: "15px"
+          }}>
                 Başlık: <strong>{selectedTest.title}</strong>
               </div>
-            </>
-          ) : (
-            <div className="readonly-empty">
+            </> : <div className="readonly-empty">
               Oku modunda görmeniz için bir senaryo seçin.
-            </div>
-          )}
+            </div>}
         </aside>
       </div>
       <ImportDialog open={showImport} onClose={() => setShowImport(false)} onImport={handleImport} />
@@ -778,8 +765,6 @@ const Index = () => {
       <footer>
         Created by yasin yilmaz @2025
       </footer>
-    </>
-  );
+    </>;
 };
-
 export default Index;
