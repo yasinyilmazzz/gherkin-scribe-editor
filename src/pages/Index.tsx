@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import ImportDialog from "../components/ImportDialog";
 
@@ -105,7 +104,7 @@ const Index = () => {
     if (highlightedContentRef.current) {
       highlightedContentRef.current.innerHTML = applySyntaxHighlighting(text);
       
-      // Sync scroll position
+      // Sync scroll position - THIS IS THE KEY FIX
       highlightedContentRef.current.scrollTop = editor.scrollTop;
     }
     
@@ -323,7 +322,7 @@ const Index = () => {
 
   return (
     <>
-      <style>{`
+      <style jsx>{`
         * {
           box-sizing: border-box;
           margin: 0;
@@ -421,7 +420,8 @@ const Index = () => {
           top: 0;
           left: 0;
           padding: 16px;
-          color: black; /* Change to visible text color */
+          color: transparent;
+          caret-color: black;
           z-index: 2;
           line-height: 1.5;
           overflow-y: auto; /* Enable scrolling */
@@ -438,20 +438,16 @@ const Index = () => {
           font-size: 14px;
           white-space: pre-wrap;
           overflow-y: auto;
+          pointer-events: none;
           line-height: 1.5;
           position: absolute;
           top: 0;
           left: 0;
           padding: 16px;
-          z-index: 1; /* Set z-index lower than textarea */
-          pointer-events: none;
-          background-color: transparent;
-          color: transparent;
         }
         
         .keyword {
           font-weight: 600;
-          color: #0369a1;
         }
         
         .parameter {
