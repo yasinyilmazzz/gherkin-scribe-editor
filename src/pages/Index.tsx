@@ -1,5 +1,5 @@
-
 import { useEffect, useRef, useState } from "react";
+import ImportDialog from "../components/ImportDialog";
 
 const Index = () => {
   // DOM element references
@@ -8,9 +8,13 @@ const Index = () => {
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const testCaseListRef = useRef<HTMLDivElement>(null);
   
+  // Read-only panel state
+  const [selectedTest, setSelectedTest] = useState<{id: string, title: string, content: string} | null>(null);
+  
   // State
   const [savedTests, setSavedTests] = useState<Array<{id: string, title: string, content: string}>>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 0, ch: 0 });
   
   // Load saved tests from local storage
@@ -285,6 +289,37 @@ const Index = () => {
     };
   }, []);
 
+  // Import handler
+  const handleImport = (featureText: string) => {
+    // Parse and split into scenario blocks starting with "Scenario:"
+    const scenarioBlocks = featureText.split(/\n(?=Scenario:)/g);
+    let importedCount = 0;
+    const newTests = [...savedTests];
+    scenarioBlocks.forEach(block => {
+      const trimmedBlock = block.trim();
+      if (!trimmedBlock) return;
+      const scenarioMatch = trimmedBlock.match(/Scenario:\s*(.+)$/m);
+      const title = scenarioMatch ? scenarioMatch[1].trim() : "İsimsiz Senaryo";
+      // Unique content check
+      const isDuplicate = newTests.some(t => t.content.trim() === trimmedBlock);
+      if (!isDuplicate) {
+        newTests.push({
+          id: Date.now().toString() + Math.random(),
+          title,
+          content: trimmedBlock
+        });
+        importedCount++;
+      }
+    });
+    setSavedTests(newTests);
+    localStorage.setItem('gherkinTests', JSON.stringify(newTests));
+    setShowImport(false);
+    if (importedCount)
+      showToast('Başarılı', `Toplam ${importedCount} senaryo içe aktarıldı.`);
+    else
+      showToast('Uyarı', `Yüklenen dosyada eklenebilecek yeni senaryo bulunamadı.`, true);
+  };
+
   return (
     <>
       <style jsx>{`
@@ -552,100 +587,194 @@ const Index = () => {
           padding: 20px;
         }
         
+        .layout-main {
+          display: flex;
+          width: 100%;
+          min-height: 100vh;
+        }
+        .content-area {
+          flex: 1 1 0;
+          padding-right: 24px;
+          max-width: 730px;
+        }
+        .sidebar-panel {
+          flex-basis: 340px;
+          flex-shrink: 0;
+          background: #f5f6fa;
+          border-left: 1px solid #e5e7eb;
+          min-height: 100vh;
+          padding: 24px 16px 0 16px;
+          display: flex;
+          flex-direction: column;
+          position: sticky;
+          top: 0;
+        }
+        @media (max-width: 900px) {
+          .layout-main {
+            flex-direction: column;
+          }
+          .sidebar-panel {
+            width: 100%;
+            min-height: 160px;
+            border-left: none;
+            border-top: 1px solid #e5e7eb;
+            flex-basis: auto;
+            padding-top: 16px;
+          }
+          .content-area {
+            padding-right: 0;
+            max-width: 100vw;
+          }
+        }
+        .readonly-title {
+          font-weight: 600;
+          font-size: 1.1rem;
+          color: #374151;
+          margin-bottom: 10px;
+        }
+        .readonly-feature {
+          background: #fff;
+          border-radius: 6px;
+          padding: 14px;
+          color: #374151;
+          font-family: monospace;
+          font-size: 14px;
+          max-height: 65vh;
+          min-height: 180px;
+          overflow-y: auto;
+          border: 1px solid #e5e7eb;
+          white-space: pre-wrap;
+        }
+        .readonly-empty {
+          color: #9ca3af;
+          min-height: 180px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+        }
         footer {
-          margin-top: 40px;
+          margin-top: 0;
           padding: 20px 0;
           text-align: center;
           color: #6b7280;
           font-size: 0.875rem;
           border-top: 1px solid #e5e7eb;
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: #fff;
+          z-index: 2;
         }
       `}</style>
-
-      <div className="container">
-        <h1>Cucumber Gherkin Test Case Editor</h1>
-        
-        <div className="button-container">
-          <button onClick={saveTestCase} className="primary-button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
-              <polyline points="17 21 17 13 7 13 7 21"></polyline>
-              <polyline points="7 3 7 8 15 8"></polyline>
-            </svg>
-            <span>{editingId ? 'Güncelle' : 'Kaydet'}</span>
-          </button>
-          <button onClick={exportTestCases} className="secondary-button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Dışa Aktar
-          </button>
-        </div>
-        
-        <div className="editor-container">
-          <div className="editor">
-            <textarea 
-              ref={editorRef}
-              id="editor" 
-              placeholder="Gherkin test senaryonuzu yazmaya başlayın..." 
-              onInput={handleEditorInput}
-              onScroll={handleEditorScroll} // This is important for syncing scroll
-            ></textarea>
-            <div ref={highlightedContentRef} className="highlighted-content"></div>
+      <div className="layout-main">
+        <div className="content-area">
+          <h1>Cucumber Gherkin Test Case Editor</h1>
+          <div className="button-container">
+            <button onClick={saveTestCase} className="primary-button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                <polyline points="7 3 7 8 15 8"></polyline>
+              </svg>
+              <span>{editingId ? 'Güncelle' : 'Kaydet'}</span>
+            </button>
+            <button onClick={exportTestCases} className="secondary-button">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Dışa Aktar
+            </button>
+            <button onClick={() => setShowImport(true)} className="secondary-button" style={{marginLeft: '0'}}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" style={{marginRight: 4}} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12"></path>
+                <path d="M16.5 10.5L12 15l-4.5-4.5"></path>
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              </svg>
+              İçe Aktar
+            </button>
           </div>
-          <div ref={suggestionsRef} className="suggestions" style={{ display: 'none' }}></div>
-        </div>
-        
-        <h2>Kaydedilmiş Test Senaryoları</h2>
-        <div ref={testCaseListRef} className="test-case-list">
-          {savedTests.length === 0 ? (
-            <div className="empty-state">Henüz kaydedilmiş test senaryosu yok.</div>
-          ) : (
-            savedTests.map((test) => (
-              <div key={test.id} className="test-case-card">
-                <div className="test-case-header" onClick={() => {
-                  // Toggle expanded class on test case content
-                  const content = document.querySelector(`#test-content-${test.id}`);
-                  content?.classList.toggle('expanded');
-                }}>
-                  <div className="test-case-title">{test.title}</div>
-                  <div className="button-group">
-                    <button className="edit-button" onClick={(e) => {
-                      e.stopPropagation();
-                      editTestCase(test.id);
-                    }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                      </svg>
-                    </button>
-                    <button className="edit-button" onClick={(e) => {
-                      e.stopPropagation();
-                      deleteTestCase(test.id);
-                    }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        <line x1="10" y1="11" x2="10" y2="17"></line>
-                        <line x1="14" y1="11" x2="14" y2="17"></line>
-                      </svg>
-                    </button>
+          <div className="editor-container">
+            <div className="editor">
+              <textarea
+                ref={editorRef}
+                id="editor"
+                placeholder="Gherkin test senaryonuzu yazmaya başlayın..."
+                onInput={handleEditorInput}
+                onScroll={handleEditorScroll}
+              ></textarea>
+              <div ref={highlightedContentRef} className="highlighted-content"></div>
+            </div>
+            <div ref={suggestionsRef} className="suggestions" style={{ display: 'none' }}></div>
+          </div>
+          {/* Kaydedilmiş Senaryolar şimdi hemen inputun altında */}
+          <h2 style={{marginBottom: "0.6rem", marginTop: "2rem"}}>Kaydedilmiş Test Senaryoları</h2>
+          <div className="test-case-list">
+            {savedTests.length === 0 ? (
+              <div className="empty-state">Henüz kaydedilmiş test senaryosu yok.</div>
+            ) : (
+              savedTests.map((test) => (
+                <div key={test.id} className="test-case-card" tabIndex={0}
+                  style={{cursor: "pointer"}}
+                  onClick={() => setSelectedTest(test)}
+                  onKeyDown={e => { if (e.key === "Enter") setSelectedTest(test); }}>
+                  <div className="test-case-header">
+                    <div className="test-case-title">{test.title}</div>
+                    <div className="button-group">
+                      <button className="edit-button" title="Düzenle" onClick={e => {
+                        e.stopPropagation();
+                        setSelectedTest(null);
+                        editTestCase(test.id);
+                      }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button className="edit-button" title="Sil" onClick={e => {
+                        e.stopPropagation();
+                        setSelectedTest(null);
+                        deleteTestCase(test.id);
+                      }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          <line x1="10" y1="11" x2="10" y2="17"></line>
+                          <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
+                  {/* Kapatılan content kaldırıldı, sadece sağ panelde gösterilecek */}
                 </div>
-                <pre id={`test-content-${test.id}`} className="test-case-content">{test.content}</pre>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
+        <aside className="sidebar-panel">
+          <div className="readonly-title">Detaylı Önizleme</div>
+          {selectedTest ? (
+            <>
+              <div className="readonly-feature">{selectedTest.content}</div>
+              <div style={{margin: "12px 0 0 0", color: "#6b7280", fontSize: "15px"}}>
+                Başlık: <strong>{selectedTest.title}</strong>
+              </div>
+            </>
+          ) : (
+            <div className="readonly-empty">
+              Oku modunda görmeniz için bir senaryo seçin.
+            </div>
+          )}
+        </aside>
       </div>
-      
+      <ImportDialog open={showImport} onClose={() => setShowImport(false)} onImport={handleImport} />
       <div id="toast" className="toast">
         <div className="toast-title" id="toastTitle"></div>
         <div className="toast-message" id="toastMessage"></div>
       </div>
-      
       <footer>
         Created by yasin yilmaz @2025
       </footer>
