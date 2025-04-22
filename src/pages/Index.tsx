@@ -741,7 +741,7 @@ const Index = () => {
                 </div>)}
           </div>
         </div>
-        <aside className="sidebar-panel my-[120px] mx-0 py-[12px] px-0">
+        <aside className="sidebar-panel mx-0 py-[12px] px-0 my-[115px]">
           <div className="readonly-title px-[19px]">Detaylı Önizleme</div>
           {selectedTest ? <>
               <div className="readonly-feature">{selectedTest.content}</div>
